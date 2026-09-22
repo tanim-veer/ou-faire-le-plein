@@ -49,28 +49,65 @@ def test_station_plus_pres_du_depart_a_un_cout_detour_nul():
     assert s.detour_km == 0
     assert s.cout_detour == 0
     assert s.cout_total_reel == s.cout_plein
+    assert s.volume_net_l == s.volume_achete_l  # pas de détour -> rien n'est "perdu" en carburant
 
 
-def test_station_loin_moins_chere_peut_couter_plus_cher_au_final():
+def test_station_tres_loin_perd_meme_si_moins_chere_en_mode_euros():
+    """Cas extrême : un détour énorme doit faire perdre une station même très
+    bon marché, en mode budget en euros (classement par volume net obtenu).
+    """
     req = RechercheRequest(**REQUETE_BASE)
 
     proche_chere = evaluer_station(station_brute(48.86, 2.36, 2.00), req)
     loin_pas_chere = evaluer_station(station_brute(49.5, 3.5, 1.70), req)  # ~130km, gros détour
 
-    # La station loin affiche un prix au litre plus bas...
     assert loin_pas_chere.prix_carburant < proche_chere.prix_carburant
-    # ...mais son coût réel total (plein + détour) doit être plus élevé,
-    # c'est tout l'intérêt du calcul.
-    assert loin_pas_chere.cout_total_reel > proche_chere.cout_total_reel
+    assert loin_pas_chere.volume_net_l < proche_chere.volume_net_l
 
 
-def test_classement_trie_par_cout_reel_et_pas_par_prix_affiche():
-    req = RechercheRequest(**REQUETE_BASE)
-    brutes = [
-        station_brute(49.5, 3.5, 1.70),  # loin, prix bas -> détour cher
-        station_brute(48.86, 2.36, 2.00),  # proche, prix plus haut
-    ]
-    classees = classer_stations(brutes, req)
-    # La station proche doit arriver en premier malgré son prix affiché plus élevé.
+def test_euros_favorise_le_prix_bas_meme_avec_un_leger_detour():
+    """Régression : en mode budget en euros, le montant dépensé est fixe quelle
+    que soit la station (on ajuste le volume acheté). Classer par "coût total"
+    revient alors à classer par distance et ignore le prix affiché, ce qui est
+    trompeur : deux stations à la même distance mais à des prix très différents
+    finissent quasiment ex-æquo, alors que la moins chère donne bien plus
+    d'essence pour le même argent.
+
+    Le bon critère en mode euros est donc le volume NET obtenu (volume acheté
+    moins le carburant brûlé pour le détour), pas le coût total.
+    """
+    req = RechercheRequest(**REQUETE_BASE)  # 50€, montant fixe
+
+    proche_chere = station_brute(48.8566, 2.3522, 2.50)  # aucun détour, prix élevé
+    leger_detour_pas_chere = station_brute(48.87, 2.37, 2.00)  # petit détour, 20% moins cher
+
+    classees = classer_stations([proche_chere, leger_detour_pas_chere], req)
+
+    # La station moins chère doit gagner : elle donne nettement plus de
+    # carburant pour les mêmes 50€, malgré le petit détour.
+    assert classees[0].prix_carburant == 2.00
+
+    # Un classement (bugué) par coût total réel aurait donné le résultat inverse,
+    # puisque le coût total réel est ~50€ pour les deux (le montant est fixe) :
+    # seul le petit coût du détour les différencierait, favorisant à tort la
+    # station la plus chère mais sans aucun détour.
+    par_cout_total = sorted([classees[0], classees[1]], key=lambda s: s.cout_total_reel)
+    assert par_cout_total[0].prix_carburant == 2.50
+
+
+def test_litres_classe_par_cout_total_et_favorise_le_prix_bas():
+    """En mode budget en litres, le volume acheté est fixe : c'est bien l'argent
+    dépensé (carburant + détour) qui doit déterminer le classement.
+    """
+    req = RechercheRequest(**{**REQUETE_BASE, "type_budget": TypeBudget.litres, "montant": 40})
+
+    proche_chere = station_brute(48.8566, 2.3522, 2.00)
+    loin_pas_chere = station_brute(49.5, 3.5, 1.70)  # ~130km de détour
+
+    classees = classer_stations([proche_chere, loin_pas_chere], req)
+
+    # Le gros détour doit faire perdre la station la moins chère : pour un
+    # volume fixe, le carburant supplémentaire brûlé en route coûte plus cher
+    # que ce que la différence de prix ne fait économiser.
     assert classees[0].prix_carburant == 2.00
     assert classees[0].cout_total_reel < classees[1].cout_total_reel

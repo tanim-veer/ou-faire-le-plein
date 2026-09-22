@@ -1,9 +1,24 @@
 """Calcule, pour chaque station candidate, le coût réel du plein en tenant
 compte du détour (carburant brûlé + temps perdu pour s'y rendre), et pas
 uniquement du prix affiché à la pompe.
+
+Le bon classement dépend de ce que l'utilisateur a fixé :
+
+- Budget en LITRES (le volume à acheter est fixe) : ce qui varie d'une station
+  à l'autre, c'est l'argent dépensé (prix du plein + carburant brûlé pour le
+  détour). On classe donc par coût total réel croissant.
+- Budget en EUROS (l'argent dépensé est fixe) : quelle que soit la station,
+  l'utilisateur dépense toujours le même montant en carburant. Ce qui varie,
+  c'est la quantité d'essence obtenue pour cet argent, moins celle brûlée pour
+  le détour. On classe donc par volume net obtenu décroissant.
+
+  (Classer par "coût total" en mode euros serait trompeur : ce coût est
+  quasiment fixe puisque le montant dépensé est fixé par l'utilisateur, et le
+  classement finirait par ignorer le prix du carburant pour ne refléter que la
+  distance du détour.)
 """
 from app.distance import detour_km, distance_km
-from app.schemas import RechercheRequest, Station
+from app.schemas import RechercheRequest, Station, TypeBudget
 
 
 def evaluer_station(brute: dict, req: RechercheRequest) -> Station:
@@ -22,7 +37,7 @@ def evaluer_station(brute: dict, req: RechercheRequest) -> Station:
 
     # Volume à acheter selon ce que l'utilisateur a demandé (un montant en euros
     # ou directement un volume en litres).
-    if req.type_budget.value == "euros":
+    if req.type_budget == TypeBudget.euros:
         volume_l = req.montant / prix
     else:
         volume_l = req.montant
@@ -32,6 +47,9 @@ def evaluer_station(brute: dict, req: RechercheRequest) -> Station:
     # Carburant brûlé pour faire le détour, valorisé au prix de cette station.
     carburant_detour_l = (d_km / 100) * req.consommation_l_100km
     cout_detour = carburant_detour_l * prix
+
+    # Volume réellement gagné une fois le détour payé en carburant.
+    volume_net_l = volume_l - carburant_detour_l
 
     return Station(
         id=brute["id"],
@@ -46,16 +64,24 @@ def evaluer_station(brute: dict, req: RechercheRequest) -> Station:
         detour_km=round(d_km, 2),
         temps_detour_min=round(temps_min, 1),
         volume_achete_l=round(volume_l, 2),
+        volume_net_l=round(volume_net_l, 2),
         cout_plein=round(cout_plein, 2),
         cout_detour=round(cout_detour, 2),
         cout_total_reel=round(cout_plein + cout_detour, 2),
     )
 
 
-def classer_stations(stations_brutes: list[dict], req: RechercheRequest) -> list[Station]:
-    """Évalue toutes les stations et les trie par coût réel total croissant
-    (le meilleur choix en tenant compte du détour arrive en premier).
+def classer_stations(
+    stations_brutes: list[dict], req: RechercheRequest
+) -> list[Station]:
+    """Évalue toutes les stations et les classe selon ce que l'utilisateur a
+    fixé (voir le module docstring pour le raisonnement).
     """
     evaluees = [evaluer_station(s, req) for s in stations_brutes]
-    evaluees.sort(key=lambda s: s.cout_total_reel)
+
+    if req.type_budget == TypeBudget.euros:
+        evaluees.sort(key=lambda s: s.volume_net_l, reverse=True)
+    else:
+        evaluees.sort(key=lambda s: s.cout_total_reel)
+
     return evaluees

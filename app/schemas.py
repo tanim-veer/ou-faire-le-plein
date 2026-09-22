@@ -50,6 +50,7 @@ class Station(BaseModel):
     temps_detour_min: float
 
     volume_achete_l: float
+    volume_net_l: float
     cout_plein: float
     cout_detour: float
     cout_total_reel: float
