@@ -1,10 +1,8 @@
-"""Calculs géographiques : distance à vol d'oiseau et coût d'un détour.
+"""Calculs géographiques à vol d'oiseau (formule de Haversine).
 
-On n'utilise pas de moteur de routage réel (type OSRM) pour rester simple et
-sans dépendance externe payante : les distances sont calculées à vol d'oiseau
-(formule de Haversine). C'est une approximation qui sous-estime légèrement les
-distances réelles sur route, mais elle reste pertinente pour comparer des
-stations entre elles sur une même zone.
+Sert de repli léger, sans appel réseau, quand le vrai calcul d'itinéraire
+(OSRM, voir app/routage.py) est indisponible, et de présélection rapide avant
+de solliciter OSRM (voir app/main.py).
 """
 import math
 
@@ -44,3 +42,33 @@ def detour_km(
 
     detour = dist_depart_station + dist_station_arrivee - dist_directe
     return max(detour, 0.0)  # évite un résultat légèrement négatif dû à l'approximation
+
+
+def points_le_long_du_trajet(
+    depart: tuple[float, float],
+    arrivee: tuple[float, float] | None,
+    espacement_km: float = 25,
+    max_points: int = 8,
+) -> list[tuple[float, float]]:
+    """Répartit des points entre `depart` et `arrivee`, pour chercher des
+    stations tout au long du trajet plutôt qu'uniquement autour du départ.
+
+    Sans arrivée, renvoie simplement [depart] (recherche classique, aller-retour).
+    Avec une arrivée, ajoute des points intermédiaires par interpolation linéaire
+    (en ligne droite, pas sur la route réelle : suffisant pour couvrir la zone
+    à chercher, une route ne s'écarte pas énormément d'une ligne droite entre
+    deux villes à l'échelle où l'on cherche des stations).
+    """
+    if arrivee is None:
+        return [depart]
+
+    distance_totale = distance_km(*depart, *arrivee)
+    nb_segments = max(1, min(max_points - 1, round(distance_totale / espacement_km)))
+
+    points = []
+    for i in range(nb_segments + 1):
+        t = i / nb_segments
+        lat = depart[0] + (arrivee[0] - depart[0]) * t
+        lon = depart[1] + (arrivee[1] - depart[1]) * t
+        points.append((lat, lon))
+    return points

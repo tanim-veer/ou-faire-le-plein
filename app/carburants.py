@@ -4,6 +4,8 @@ Documentation : https://data.economie.gouv.fr/explore/dataset/prix-des-carburant
 Données publiques, gratuites, mises à jour en continu par les stations elles-mêmes
 (obligation légale). Aucune clé d'API requise.
 """
+import asyncio
+
 import httpx
 
 from app.schemas import Carburant
@@ -65,3 +67,25 @@ async def chercher_stations(
             }
         )
     return stations
+
+
+async def chercher_stations_le_long_du_trajet(
+    points: list[tuple[float, float]], rayon_km: float, carburant: Carburant
+) -> list[dict]:
+    """Cherche des stations autour de plusieurs points (typiquement répartis
+    le long d'un trajet, voir app/distance.py:points_le_long_du_trajet) et
+    fusionne les résultats en dédoublonnant par id de station.
+
+    Un seul point (trajet sans arrivée) revient à un simple `chercher_stations`.
+    """
+    resultats_par_point = await asyncio.gather(
+        *[chercher_stations(lat, lon, rayon_km, carburant) for lat, lon in points]
+    )
+
+    stations_par_id: dict[str, dict] = {}
+    for stations in resultats_par_point:
+        for s in stations:
+            stations_par_id[s["id"]] = s  # dédoublonne : une station peut être
+            # trouvée depuis plusieurs points si les zones de recherche se chevauchent
+
+    return list(stations_par_id.values())

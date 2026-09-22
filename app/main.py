@@ -10,8 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.calcul import classer_stations
-from app.carburants import chercher_stations
-from app.distance import detour_km, distance_km
+from app.carburants import chercher_stations_le_long_du_trajet
+from app.distance import detour_km, points_le_long_du_trajet
 from app.geocode import geocoder
 from app.routage import RoutageIndisponible, tracer_itineraire, trajets_depuis_depart
 from app.schemas import (
@@ -23,15 +23,15 @@ from app.schemas import (
 
 logger = logging.getLogger(__name__)
 
-# Nombre maximum de stations envoyées à OSRM en une fois. On route TOUTES les
-# stations trouvées plutôt qu'un sous-ensemble présélectionné : mélanger des
-# détours réels (plus honnêtes, donc souvent plus grands) avec des détours
-# approximés à vol d'oiseau (systématiquement optimistes) pour les stations
-# non routées désavantagerait injustement ces dernières dans le classement.
-# Le service "table" d'OSRM calcule tout en 1-2 requêtes quel que soit le
-# nombre de stations ; cette limite n'est qu'une sécurité (chercher_stations
-# renvoie au plus 100 résultats).
-TAILLE_POOL_ROUTAGE = 100
+# Nombre maximum de stations envoyées à OSRM en une fois. Avec une arrivée, la
+# recherche porte sur plusieurs points le long du trajet (voir
+# points_le_long_du_trajet) et peut donc remonter plusieurs centaines de
+# stations sur un long trajet : au-delà de cette limite, on garde les plus
+# prometteuses (détour approximé le plus faible) avant de demander leur vrai
+# détour à OSRM. Testé jusqu'à ~190 stations en une seule requête "table" sans
+# problème ; si jamais OSRM refuse une requête trop grosse, l'appli retombe
+# de toute façon sur l'estimation à vol d'oiseau (voir le except plus bas).
+TAILLE_POOL_ROUTAGE = 200
 
 app = FastAPI(
     title="Où faire le plein",
@@ -59,32 +59,28 @@ async def api_geocoder(adresse: str):
 
 @app.post("/api/recherche", response_model=RechercheResponse)
 async def api_recherche(req: RechercheRequest):
-    """Cherche les stations autour du départ (et du trajet si une arrivée est
-    précisée) et les classe par coût réel du plein, détour compris.
+    """Cherche les stations le long du trajet (autour du départ seul s'il n'y a
+    pas d'arrivée) et les classe par coût réel du plein, détour compris.
     """
-    stations_brutes = await chercher_stations(
-        lat=req.depart_lat,
-        lon=req.depart_lon,
-        rayon_km=req.rayon_recherche_km,
-        carburant=req.carburant,
+    depart = (req.depart_lat, req.depart_lon)
+    arrivee = (req.arrivee_lat, req.arrivee_lon) if req.arrivee_lat is not None else None
+
+    # Avec une arrivée, on cherche autour de plusieurs points répartis sur tout
+    # le trajet (pas seulement près du départ), sinon on ne trouverait jamais
+    # les stations proches de l'arrivée ou du milieu du parcours.
+    points_recherche = points_le_long_du_trajet(depart, arrivee)
+    stations_brutes = await chercher_stations_le_long_du_trajet(
+        points_recherche, rayon_km=req.rayon_recherche_km, carburant=req.carburant
     )
 
     if not stations_brutes:
         return RechercheResponse(nb_stations_analysees=0, stations=[])
 
-    depart = (req.depart_lat, req.depart_lon)
-    arrivee = (req.arrivee_lat, req.arrivee_lon) if req.arrivee_lat is not None else None
-
     # Pré-tri à vol d'oiseau (gratuit, aucun appel réseau) pour ne demander un
     # vrai calcul d'itinéraire qu'aux stations qui ont une vraie chance de
-    # figurer dans le classement final. Avec une arrivée, le bon critère est le
-    # détour estimé (une station peut être loin du départ mais presque sur la
-    # route) ; sans arrivée, c'est simplement la distance au départ.
-    if arrivee is not None:
-        cle_tri = lambda s: detour_km(depart, (s["lat"], s["lon"]), arrivee)
-    else:
-        cle_tri = lambda s: distance_km(*depart, s["lat"], s["lon"])
-    stations_brutes.sort(key=cle_tri)
+    # figurer dans le classement final (detour_km gère aussi bien le cas avec
+    # arrivée que l'aller-retour sans arrivée).
+    stations_brutes.sort(key=lambda s: detour_km(depart, (s["lat"], s["lon"]), arrivee))
     candidats = stations_brutes[:TAILLE_POOL_ROUTAGE]
 
     trajets_par_id: dict[str, dict] = {}
@@ -120,6 +116,7 @@ async def api_recherche(req: RechercheRequest):
         nb_stations_analysees=len(stations_classees),
         stations=stations_classees[:20],  # les 20 meilleurs résultats
     )
+
 
 @app.post("/api/itineraire", response_model=ItineraireResponse)
 async def api_itineraire(req: ItineraireRequest):
