@@ -1,141 +1,233 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap");
+
 :root {
-  --primary: #1a73e8;
-  --bg: #f5f7fa;
-  --card: #ffffff;
-  --text: #1f2937;
-  --muted: #6b7280;
-  --border: #e5e7eb;
-  --bon-plan: #16a34a;
+  --asphalt: #0f1216;
+  --asphalt-raised: #171b21;
+  --panel: #1c2129;
+  --line: #2a313c;
+  --text: #e9edf3;
+  --muted: #8891a0;
+  --amber: #f5b60d;
+  --amber-dim: #6b5215;
+  --go: #2fbd6b;
+  --go-dim: #123b26;
 }
 
 * { box-sizing: border-box; }
 
-body {
+html, body {
   margin: 0;
-  font-family: "Segoe UI", system-ui, sans-serif;
-  background: var(--bg);
+  min-height: 100%;
+  background: var(--asphalt);
+}
+
+body {
+  font-family: "Manrope", system-ui, sans-serif;
   color: var(--text);
+  background-image:
+    repeating-linear-gradient(90deg, transparent 0 62px, rgba(255,255,255,.025) 62px 64px);
 }
 
-header {
-  background: linear-gradient(120deg, #0b3d91, var(--primary));
-  color: white;
-  padding: 28px 20px;
-  text-align: center;
+.chiffres, .prix, #resultats .cout .total, #resultats .cout .prix-l {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
-header h1 { margin: 0 0 6px; font-size: 1.8rem; }
-header p { margin: 0; opacity: .9; }
+/* ---------- barre du haut ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--asphalt-raised);
+}
 
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand .pastille {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 10px 1px var(--amber);
+}
+.brand h1 { font-size: 1.15rem; margin: 0; font-weight: 800; letter-spacing: -.01em; }
+.topbar p { margin: 0; color: var(--muted); font-size: .85rem; max-width: 380px; text-align: right; }
+
+@media (max-width: 640px) {
+  .topbar { flex-direction: column; align-items: flex-start; }
+  .topbar p { text-align: left; }
+}
+
+/* ---------- structure générale ---------- */
 main {
-  max-width: 900px;
-  margin: -20px auto 40px;
-  padding: 0 16px;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
 }
 
+/* ---------- formulaire ---------- */
 form {
-  background: var(--card);
-  border-radius: 14px;
-  padding: 20px;
-  box-shadow: 0 6px 20px rgba(0,0,0,.08);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 22px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
-.ligne {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
+.ligne { display: flex; gap: 14px; flex-wrap: wrap; }
+.ligne .champ { flex: 1; min-width: 150px; }
+
+.champ { display: flex; flex-direction: column; gap: 6px; }
+.champ label {
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
 }
-
-.ligne .champ { flex: 1; min-width: 140px; }
-
-.champ { display: flex; flex-direction: column; gap: 4px; }
-.champ label { font-size: .85rem; font-weight: 600; color: var(--muted); }
 .champ small { font-size: .75rem; color: var(--muted); }
 
 input, select {
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 1rem;
+  background: var(--asphalt);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 11px 12px;
+  border-radius: 7px;
+  font-size: .95rem;
+  font-family: inherit;
+}
+input::placeholder { color: #5b6474; }
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgba(245, 182, 13, .18);
 }
 
-button {
-  background: var(--primary);
-  color: white;
+button[type="submit"] {
+  background: var(--amber);
+  color: #1a1200;
   border: none;
-  padding: 12px;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
+  padding: 13px;
+  border-radius: 7px;
+  font-size: .95rem;
+  font-weight: 800;
+  letter-spacing: .01em;
   cursor: pointer;
+  transition: filter .15s ease;
 }
-button:hover { background: #0b5ed7; }
-button:disabled { opacity: .6; cursor: wait; }
+button[type="submit"]:hover { filter: brightness(1.08); }
+button[type="submit"]:disabled { opacity: .5; cursor: wait; }
 
 #message {
   text-align: center;
   color: var(--muted);
+  font-size: .85rem;
   min-height: 1.2em;
+  margin: 18px 0 10px;
 }
 
+/* ---------- carte ---------- */
 #carte {
   height: 320px;
-  border-radius: 14px;
-  margin: 16px 0;
-  box-shadow: 0 6px 20px rgba(0,0,0,.08);
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  margin-bottom: 18px;
+  background: var(--asphalt);
+}
+/* Le fond OpenStreetMap est en clair par défaut (aucune tuile sombre fiable
+   n'est disponible sans compte) : on l'assombrit en CSS pour rester cohérent
+   avec le thème du site, sans toucher aux marqueurs ni aux popups. */
+#carte .leaflet-tile-pane {
+  filter: grayscale(1) invert(1) brightness(0.92) contrast(1.05);
 }
 
+/* ---------- résultats ---------- */
 #resultats {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .station {
-  background: var(--card);
-  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 9px;
   padding: 14px 16px;
-  box-shadow: 0 2px 10px rgba(0,0,0,.06);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
-.station:first-child { border: 2px solid var(--bon-plan); }
+.station.top {
+  border-color: var(--go);
+  background: linear-gradient(180deg, var(--go-dim), var(--panel) 55%);
+}
 
 .station .infos { flex: 1; min-width: 0; }
-.station .adresse { font-weight: 600; }
-.station .detail { font-size: .85rem; color: var(--muted); }
-
-.station .cout {
-  text-align: right;
+.station .adresse {
+  font-weight: 700;
+  font-size: .95rem;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.station .cout .total { font-size: 1.3rem; font-weight: 700; color: var(--bon-plan); }
-.station .cout .prix { font-size: .8rem; color: var(--muted); }
+.station .detail {
+  font-size: .78rem;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.station .detail b { color: var(--text); font-weight: 600; }
+
+.station .cout { text-align: right; white-space: nowrap; }
+.station .cout .total {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.station.top .cout .total { color: var(--go); }
+.station .cout .sous-detail { font-size: .72rem; color: var(--muted); margin-top: 2px; }
 
 .badge {
-  display: inline-block;
-  background: var(--bon-plan);
-  color: white;
-  font-size: .7rem;
-  font-weight: 700;
-  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--go-dim);
+  color: var(--go);
+  border: 1px solid var(--go);
+  font-size: .68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 3px 8px;
   border-radius: 999px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
+/* ---------- pied de page ---------- */
 footer {
   text-align: center;
   color: var(--muted);
-  font-size: .8rem;
-  padding: 20px;
+  font-size: .75rem;
+  padding: 10px 20px 30px;
 }
-footer a { color: var(--muted); }
+footer a { color: var(--muted); text-decoration: underline dotted; }
+footer a:hover { color: var(--amber); }
+
+/* survol leaflet en thème sombre */
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+  background: var(--panel);
+  color: var(--text);
+}
+.leaflet-control-attribution {
+  background: rgba(23,27,33,.8) !important;
+  color: var(--muted) !important;
+}
+.leaflet-control-attribution a { color: var(--muted) !important; }
