@@ -48,6 +48,7 @@ class Station(BaseModel):
     distance_km: float
     detour_km: float
     temps_detour_min: float
+    trajet_reel: bool = False  # True si distance/détour viennent d'un vrai calcul d'itinéraire (OSRM)
 
     volume_achete_l: float
     volume_net_l: float

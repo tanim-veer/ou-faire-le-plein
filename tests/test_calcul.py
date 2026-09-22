@@ -111,3 +111,42 @@ def test_litres_classe_par_cout_total_et_favorise_le_prix_bas():
     # que ce que la différence de prix ne fait économiser.
     assert classees[0].prix_carburant == 2.00
     assert classees[0].cout_total_reel < classees[1].cout_total_reel
+
+
+def test_evaluer_station_utilise_le_trajet_reel_si_fourni():
+    """Quand un vrai trajet routier (OSRM) est fourni, il doit être utilisé
+    tel quel plutôt que le calcul à vol d'oiseau.
+    """
+    req = RechercheRequest(**REQUETE_BASE)
+    trajet = {"distance_km": 12.3, "detour_km": 24.6, "temps_detour_min": 31.5}
+
+    s = evaluer_station(station_brute(48.86, 2.36, 2.0), req, trajet=trajet)
+
+    assert s.distance_km == 12.3
+    assert s.detour_km == 24.6
+    assert s.temps_detour_min == 31.5
+    assert s.trajet_reel is True
+
+
+def test_evaluer_station_sans_trajet_retombe_sur_vol_oiseau():
+    req = RechercheRequest(**REQUETE_BASE)
+    s = evaluer_station(station_brute(48.86, 2.36, 2.0), req)
+    assert s.trajet_reel is False
+
+
+def test_classer_stations_applique_les_trajets_par_id():
+    req = RechercheRequest(**REQUETE_BASE)
+    brutes = [
+        {**station_brute(48.86, 2.36, 2.0), "id": "A"},
+        {**station_brute(48.90, 2.40, 2.0), "id": "B"},
+    ]
+    # Un trajet réel indique que "B" (pourtant plus loin à vol d'oiseau) a en
+    # fait un détour routier minime (ex : autoroute directe).
+    trajets = {"B": {"distance_km": 1.0, "detour_km": 2.0, "temps_detour_min": 2.0}}
+
+    classees = classer_stations(brutes, req, trajets)
+    par_id = {s.id: s for s in classees}
+
+    assert par_id["B"].trajet_reel is True
+    assert par_id["A"].trajet_reel is False
+    assert par_id["B"].detour_km == 2.0

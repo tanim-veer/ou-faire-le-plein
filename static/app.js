@@ -60,6 +60,7 @@ function afficherResultats(stations, typeBudget) {
         <div class="adresse">${s.adresse}, ${s.ville}</div>
         <div class="detail">
           <b>${s.distance_km} km</b> · détour ${s.detour_km} km (~${formatMinutes(s.temps_detour_min)})
+          ${s.trajet_reel ? "" : " (estimation)"}
           · ${s.volume_achete_l} L à ${s.prix_carburant.toFixed(3)} €/L
         </div>
       </div>

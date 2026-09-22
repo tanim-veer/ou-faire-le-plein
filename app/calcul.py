@@ -21,17 +21,26 @@ from app.distance import detour_km, distance_km
 from app.schemas import RechercheRequest, Station, TypeBudget
 
 
-def evaluer_station(brute: dict, req: RechercheRequest) -> Station:
+def evaluer_station(brute: dict, req: RechercheRequest, trajet: dict | None = None) -> Station:
     """Transforme une station brute (venant de l'API carburants) en Station
     évaluée, avec le coût réel du détour pour aller la remplir.
+
+    Si `trajet` est fourni (dict avec distance_km/detour_km/temps_detour_min,
+    voir app/main.py), on utilise ce vrai calcul d'itinéraire routier (OSRM).
+    Sinon, on retombe sur une estimation à vol d'oiseau (voir app/distance.py).
     """
     depart = (req.depart_lat, req.depart_lon)
     station_coord = (brute["lat"], brute["lon"])
     arrivee = (req.arrivee_lat, req.arrivee_lon) if req.arrivee_lat is not None else None
 
-    dist_km = distance_km(*depart, *station_coord)
-    d_km = detour_km(depart, station_coord, arrivee)
-    temps_min = (d_km / req.vitesse_moyenne_kmh) * 60
+    if trajet is not None:
+        dist_km = trajet["distance_km"]
+        d_km = trajet["detour_km"]
+        temps_min = trajet["temps_detour_min"]
+    else:
+        dist_km = distance_km(*depart, *station_coord)
+        d_km = detour_km(depart, station_coord, arrivee)
+        temps_min = (d_km / req.vitesse_moyenne_kmh) * 60
 
     prix = brute["prix_carburant"]
 
@@ -63,6 +72,7 @@ def evaluer_station(brute: dict, req: RechercheRequest) -> Station:
         distance_km=round(dist_km, 2),
         detour_km=round(d_km, 2),
         temps_detour_min=round(temps_min, 1),
+        trajet_reel=trajet is not None,
         volume_achete_l=round(volume_l, 2),
         volume_net_l=round(volume_net_l, 2),
         cout_plein=round(cout_plein, 2),
@@ -72,12 +82,21 @@ def evaluer_station(brute: dict, req: RechercheRequest) -> Station:
 
 
 def classer_stations(
-    stations_brutes: list[dict], req: RechercheRequest
+    stations_brutes: list[dict],
+    req: RechercheRequest,
+    trajets_par_id: dict[str, dict] | None = None,
 ) -> list[Station]:
     """Évalue toutes les stations et les classe selon ce que l'utilisateur a
     fixé (voir le module docstring pour le raisonnement).
+
+    `trajets_par_id` associe l'id d'une station à un vrai trajet routier
+    (calculé via OSRM, voir app/main.py) pour les stations où on en a un ;
+    les autres retombent sur l'estimation à vol d'oiseau.
     """
-    evaluees = [evaluer_station(s, req) for s in stations_brutes]
+    trajets_par_id = trajets_par_id or {}
+    evaluees = [
+        evaluer_station(s, req, trajets_par_id.get(s["id"])) for s in stations_brutes
+    ]
 
     if req.type_budget == TypeBudget.euros:
         evaluees.sort(key=lambda s: s.volume_net_l, reverse=True)
