@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Où faire le plein</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>⛽ Où faire le plein</h1>
+    <p>Trouve la station la moins chère <strong>en vrai</strong> — détour et carburant perdu inclus dans le calcul.</p>
+  </header>
+
+  <main>
+    <form id="form-recherche">
+      <div class="champ">
+        <label for="depart">Départ *</label>
+        <input id="depart" type="text" placeholder="ex : 10 rue de la Paix, Paris" required />
+        <small>Une adresse ou une ville (pas un nom de monument — l'API ne connaît que les adresses).</small>
+      </div>
+
+      <div class="champ">
+        <label for="arrivee">Arrivée (optionnel)</label>
+        <input id="arrivee" type="text" placeholder="Laisser vide pour un aller-retour depuis le départ" />
+      </div>
+
+      <div class="ligne">
+        <div class="champ">
+          <label for="carburant">Carburant *</label>
+          <select id="carburant" required>
+            <option value="gazole">Gazole</option>
+            <option value="sp95">SP95</option>
+            <option value="sp98">SP98</option>
+            <option value="e10">E10</option>
+            <option value="e85">E85</option>
+            <option value="gplc">GPL</option>
+          </select>
+        </div>
+
+        <div class="champ">
+          <label for="type_budget">Je veux mettre</label>
+          <select id="type_budget">
+            <option value="euros">en €</option>
+            <option value="litres">en litres</option>
+          </select>
+        </div>
+
+        <div class="champ">
+          <label for="montant">Montant *</label>
+          <input id="montant" type="number" min="1" step="0.5" value="50" required />
+        </div>
+      </div>
+
+      <div class="ligne">
+        <div class="champ">
+          <label for="consommation">Consommation (L/100km)</label>
+          <input id="consommation" type="number" min="1" step="0.5" value="6.5" />
+        </div>
+
+        <div class="champ">
+          <label for="rayon">Rayon de recherche (km)</label>
+          <input id="rayon" type="number" min="1" step="1" value="15" />
+        </div>
+      </div>
+
+      <button type="submit">Chercher</button>
+    </form>
+
+    <p id="message"></p>
+
+    <div id="carte"></div>
+
+    <ul id="resultats"></ul>
+  </main>
+
+  <footer>
+    <p>
+      Données prix des carburants : <a href="https://www.prix-carburants.gouv.fr" target="_blank" rel="noopener">prix-carburants.gouv.fr</a>
+      · Géocodage : <a href="https://adresse.data.gouv.fr" target="_blank" rel="noopener">Base Adresse Nationale</a>
+      · Fond de carte : © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">contributeurs OpenStreetMap</a>
+    </p>
+  </footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
