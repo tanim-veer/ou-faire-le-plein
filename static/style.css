@@ -130,6 +130,13 @@ button[type="submit"]:disabled { opacity: .5; cursor: wait; }
   margin: 18px 0 10px;
 }
 
+.astuce {
+  text-align: center;
+  color: var(--muted);
+  font-size: .78rem;
+  margin: 0 0 10px;
+}
+
 /* ---------- carte ---------- */
 #carte {
   height: 320px;
@@ -164,11 +171,20 @@ button[type="submit"]:disabled { opacity: .5; cursor: wait; }
   justify-content: space-between;
   align-items: center;
   gap: 14px;
+  cursor: pointer;
+  transition: border-color .15s ease, transform .1s ease;
 }
+.station:hover { border-color: var(--amber); }
+.station:active { transform: scale(.995); }
 
 .station.top {
   border-color: var(--go);
   background: linear-gradient(180deg, var(--go-dim), var(--panel) 55%);
+}
+
+.station.selectionnee {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 1px var(--amber);
 }
 
 .station .infos { flex: 1; min-width: 0; }

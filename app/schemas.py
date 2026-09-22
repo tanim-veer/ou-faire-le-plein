@@ -60,3 +60,11 @@ class Station(BaseModel):
 class RechercheResponse(BaseModel):
     nb_stations_analysees: int
     stations: list[Station]
+
+
+class ItineraireRequest(BaseModel):
+    points: list[tuple[float, float]] = Field(min_length=2, description="Liste de (lat, lon), dans l'ordre du trajet")
+
+
+class ItineraireResponse(BaseModel):
+    coordonnees: list[tuple[float, float]]

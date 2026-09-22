@@ -12,6 +12,15 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 }).addTo(carte);
 
 let marqueurs = [];
+let ligneItineraire = null;
+let marqueurDepart = null;
+let marqueurArrivee = null;
+
+// Mémorisés après chaque recherche, pour pouvoir retracer l'itinéraire quand
+// on clique sur une station sans tout redemander au serveur.
+let dernierDepart = null;
+let derniereArrivee = null;
+let stationsCourantes = [];
 
 function viderMarqueurs() {
   marqueurs.forEach((m) => carte.removeLayer(m));
@@ -31,9 +40,57 @@ function formatMinutes(min) {
   return `${Math.round(min)} min`;
 }
 
+// Trace (ou retrace) l'itinéraire passant par les points donnés (dans
+// l'ordre). Échoue silencieusement si le service de routage est indisponible :
+// l'absence de tracé ne doit pas empêcher d'utiliser le reste de l'appli.
+async function tracerItineraire(points) {
+  if (ligneItineraire) {
+    carte.removeLayer(ligneItineraire);
+    ligneItineraire = null;
+  }
+  try {
+    const resp = await fetch("/api/itineraire", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ points }),
+    });
+    if (!resp.ok) return;
+
+    const data = await resp.json();
+    ligneItineraire = L.polyline(data.coordonnees, {
+      color: "#f5b60d",
+      weight: 4,
+      opacity: 0.85,
+    }).addTo(carte);
+    ligneItineraire.bringToBack();
+  } catch {
+    // Pas de tracé, tant pis : la recherche et le classement restent valables.
+  }
+}
+
+// Sélectionne une station : la met en évidence dans la liste et trace
+// l'itinéraire départ -> station -> arrivée (ou départ -> station -> départ
+// s'il n'y a pas d'arrivée, c'est-à-dire un aller-retour).
+function selectionnerStation(index) {
+  document.querySelectorAll("#resultats .station").forEach((el, i) => {
+    el.classList.toggle("selectionnee", i === index);
+  });
+
+  const s = stationsCourantes[index];
+  const point = [s.lat, s.lon];
+  const retour = derniereArrivee || dernierDepart;
+  tracerItineraire([dernierDepart, point, retour]);
+
+  carte.panTo(point);
+}
+
 function afficherResultats(stations, typeBudget) {
   resultatsEl.innerHTML = "";
   viderMarqueurs();
+  stationsCourantes = stations;
+
+  const astuce = document.getElementById("astuce");
+  astuce.hidden = stations.length === 0;
 
   if (stations.length === 0) {
     message.textContent = "Aucune station trouvée avec ce carburant dans le rayon choisi.";
@@ -43,6 +100,7 @@ function afficherResultats(stations, typeBudget) {
   stations.forEach((s, i) => {
     const li = document.createElement("li");
     li.className = "station" + (i === 0 ? " top" : "");
+    li.title = "Cliquer pour tracer l'itinéraire jusqu'à cette station";
 
     // Le nombre mis en avant doit correspondre à ce qui détermine réellement
     // le classement (voir app/calcul.py) : le volume net obtenu en mode "€"
@@ -69,15 +127,17 @@ function afficherResultats(stations, typeBudget) {
         <div class="sous-detail">${sousDetail}</div>
       </div>
     `;
+    li.addEventListener("click", () => selectionnerStation(i));
     resultatsEl.appendChild(li);
 
     const marqueur = L.marker([s.lat, s.lon])
       .addTo(carte)
       .bindPopup(`<b>${s.adresse}</b><br/>${s.prix_carburant.toFixed(3)} €/L`);
+    marqueur.on("click", () => selectionnerStation(i));
     marqueurs.push(marqueur);
   });
 
-  const groupe = L.featureGroup(marqueurs);
+  const groupe = L.featureGroup([...marqueurs, marqueurDepart, marqueurArrivee].filter(Boolean));
   carte.fitBounds(groupe.getBounds().pad(0.2));
 }
 
@@ -94,6 +154,30 @@ form.addEventListener("submit", async (e) => {
 
     const depart = await geocoder(departTexte);
     const arrivee = arriveeTexte ? await geocoder(arriveeTexte) : null;
+
+    dernierDepart = [depart.lat, depart.lon];
+    derniereArrivee = arrivee ? [arrivee.lat, arrivee.lon] : null;
+
+    if (marqueurDepart) carte.removeLayer(marqueurDepart);
+    if (marqueurArrivee) carte.removeLayer(marqueurArrivee);
+    marqueurDepart = L.circleMarker(dernierDepart, {
+      radius: 8, color: "#f5b60d", fillColor: "#f5b60d", fillOpacity: 1,
+    }).addTo(carte).bindPopup("Départ");
+    marqueurArrivee = derniereArrivee
+      ? L.circleMarker(derniereArrivee, {
+          radius: 8, color: "#2fbd6b", fillColor: "#2fbd6b", fillOpacity: 1,
+        }).addTo(carte).bindPopup("Arrivée")
+      : null;
+
+    // Trace tout de suite le trajet direct départ -> arrivée (s'il y en a
+    // une) ; il sera remplacé par départ -> station -> arrivée dès qu'on en
+    // choisit une.
+    if (derniereArrivee) {
+      tracerItineraire([dernierDepart, derniereArrivee]);
+    } else if (ligneItineraire) {
+      carte.removeLayer(ligneItineraire);
+      ligneItineraire = null;
+    }
 
     const requete = {
       depart_lat: depart.lat,

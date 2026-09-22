@@ -8,7 +8,8 @@ la distance à vol d'oiseau en cas d'échec (voir app/main.py).
 """
 import httpx
 
-BASE_URL = "https://router.project-osrm.org/table/v1/driving/"
+BASE_URL_TABLE = "https://router.project-osrm.org/table/v1/driving/"
+BASE_URL_ROUTE = "https://router.project-osrm.org/route/v1/driving/"
 
 
 class RoutageIndisponible(Exception):
@@ -30,7 +31,7 @@ async def _table(
     }
     try:
         async with httpx.AsyncClient(timeout=8) as client:
-            resp = await client.get(f"{BASE_URL}{coord_str}", params=params)
+            resp = await client.get(f"{BASE_URL_TABLE}{coord_str}", params=params)
             resp.raise_for_status()
             data = resp.json()
     except httpx.HTTPError as e:
@@ -89,3 +90,32 @@ async def trajets_depuis_depart(
         ]
 
     return {"aller": aller, "directe": directe, "retour": retour}
+
+
+async def tracer_itineraire(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """Renvoie le tracé détaillé (liste de points lat/lon) d'un itinéraire
+    passant par tous les points donnés, dans l'ordre (ex : [départ, station,
+    arrivée]). Utilise le service "route" d'OSRM, distinct du service "table"
+    utilisé pour les calculs de distance : celui-ci renvoie la géométrie du
+    trajet, pas seulement sa longueur.
+
+    Lève RoutageIndisponible en cas d'échec.
+    """
+    coord_str = ";".join(_coord(lat, lon) for lat, lon in points)
+    params = {"overview": "full", "geometries": "geojson"}
+
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            resp = await client.get(f"{BASE_URL_ROUTE}{coord_str}", params=params)
+            resp.raise_for_status()
+            data = resp.json()
+    except httpx.HTTPError as e:
+        raise RoutageIndisponible(str(e)) from e
+
+    if data.get("code") != "Ok":
+        raise RoutageIndisponible(data.get("message", "réponse OSRM invalide"))
+
+    # GeoJSON donne les coordonnées en [longitude, latitude] ; on les remet
+    # dans l'ordre (latitude, longitude) attendu par Leaflet côté frontend.
+    coordonnees = data["routes"][0]["geometry"]["coordinates"]
+    return [(lat, lon) for lon, lat in coordonnees]

@@ -13,8 +13,13 @@ from app.calcul import classer_stations
 from app.carburants import chercher_stations
 from app.distance import detour_km, distance_km
 from app.geocode import geocoder
-from app.routage import RoutageIndisponible, trajets_depuis_depart
-from app.schemas import RechercheRequest, RechercheResponse
+from app.routage import RoutageIndisponible, tracer_itineraire, trajets_depuis_depart
+from app.schemas import (
+    ItineraireRequest,
+    ItineraireResponse,
+    RechercheRequest,
+    RechercheResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +120,21 @@ async def api_recherche(req: RechercheRequest):
         nb_stations_analysees=len(stations_classees),
         stations=stations_classees[:20],  # les 20 meilleurs résultats
     )
+
+@app.post("/api/itineraire", response_model=ItineraireResponse)
+async def api_itineraire(req: ItineraireRequest):
+    """Renvoie le tracé détaillé d'un itinéraire passant par les points donnés
+    (dans l'ordre), pour l'afficher sur la carte. Ex : [départ, arrivée] pour
+    le trajet direct, ou [départ, station, arrivée] une fois une station
+    choisie.
+    """
+    try:
+        coordonnees = await tracer_itineraire(req.points)
+    except RoutageIndisponible as e:
+        logger.warning("Tracé d'itinéraire indisponible : %s", e)
+        raise HTTPException(status_code=503, detail="Service de routage indisponible") from e
+
+    return ItineraireResponse(coordonnees=coordonnees)
 
 
 # Sert le frontend (index.html, app.js, style.css) à la racine du site.
